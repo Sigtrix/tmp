@@ -217,3 +217,109 @@ if thompsonResult != 0 {
 } else {
     print("Did not match by the thompson VM!")
 }
+
+// Time the programs on a range of values for n and write the results
+// to a file in CSV format.
+import Foundation
+
+struct TimingResult {
+    let n: Int
+    let backtracking: Duration
+    let thompson: Duration
+}
+
+func timeBacktracking(n: Int) -> Duration {
+    let timingProg = makeTimingProg(n: n)
+    let timingInput = makeTimingInput(n: n)
+
+    let clock = ContinuousClock()
+    let start = clock.now
+
+    let result = bactrackingVM(timingProg, timingInput[...])
+
+    let elapsed = clock.now - start
+
+    if result == 0 {
+        print("Did not match by the backtracking VM for n = \(n)")
+    }
+
+    return elapsed
+}
+
+func timeThompson(n: Int) -> Duration {
+    let timingProg = makeTimingProg(n: n)
+    let timingInput = makeTimingInput(n: n)
+
+    let clock = ContinuousClock()
+    let start = clock.now
+
+    let result = thompsonVM(timingProg, timingInput[...])
+
+    let elapsed = clock.now - start
+
+    if result == 0 {
+        print("Did not match by the Thompson VM for n = \(n)")
+    }
+
+    return elapsed
+}
+
+func durationToNanoseconds(_ duration: Duration) -> Int64 {
+    let components = duration.components
+
+    // Duration stores seconds + attoseconds.
+    let seconds = Int64(components.seconds)
+    let attoseconds = components.attoseconds
+
+    return seconds * 1_000_000_000
+        + attoseconds / 1_000_000_000
+}
+
+// Overwrites the file if it already exists.
+func writeTimingsCSV(_ results: [TimingResult], to path: String) throws {
+    var csv = "n,backtracking_ns,thompson_ns\n"
+
+    for result in results {
+        csv += "\(result.n),"
+        csv += "\(durationToNanoseconds(result.backtracking)),"
+        csv += "\(durationToNanoseconds(result.thompson))\n"
+    }
+
+    try csv.write(
+        toFile: path,
+        atomically: true,
+        encoding: .utf8
+    )
+}
+
+
+// MARK: - Run benchmark
+
+var timings: [TimingResult] = []
+
+for n in 1..<25 {
+    print("Running n = \(n)...")
+
+    let backtracking = timeBacktracking(n: n)
+    let thompson = timeThompson(n: n)
+
+    let result = TimingResult(
+        n: n,
+        backtracking: backtracking,
+        thompson: thompson
+    )
+
+    timings.append(result)
+
+    print("  backtracking: \(backtracking)")
+    print("  thompson:     \(thompson)")
+}
+
+let csvPath = "timings.csv"
+
+do {
+    try writeTimingsCSV(timings, to: csvPath)
+    print("Wrote \(csvPath)")
+} catch {
+    print("Failed to write CSV: \(error)")
+}
