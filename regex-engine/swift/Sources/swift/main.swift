@@ -5,23 +5,23 @@ enum Instr {
     case Split(UInt32, UInt32)
 }
 
-func recursive_backtracking_vm(_ prog: [Instr], _ pc: UInt32, _ sp: Substring) -> Int32 {
+func recursiveBacktrackingVM(_ prog: [Instr], _ pc: UInt32, _ sp: Substring) -> Int32 {
     switch prog[Int(pc)] {
     case let .Char(c):
         if let first = sp.first, c == first {
             let nextIndex = sp.index(after: sp.startIndex)
-            return recursive_backtracking_vm(prog, pc + 1, sp[nextIndex...])
+            return recursiveBacktrackingVM(prog, pc + 1, sp[nextIndex...])
         }
         return 0
     case .Match:
         return 1
     case let .Jump(x):
-        return recursive_backtracking_vm(prog, x, sp)
+        return recursiveBacktrackingVM(prog, x, sp)
     case let .Split(x, y):
-        if recursive_backtracking_vm(prog, x, sp) != 0 {
+        if recursiveBacktrackingVM(prog, x, sp) != 0 {
             return 1;
         }
-        return recursive_backtracking_vm(prog, y, sp)
+        return recursiveBacktrackingVM(prog, y, sp)
     }
 }
 
@@ -30,7 +30,7 @@ struct Thread {
     var sp: Substring
 }
 
-func backtracking_vm(_ prog: [Instr], _ data: Substring) -> Int32 {
+func bactrackingVM(_ prog: [Instr], _ data: Substring) -> Int32 {
     let MAX_THREADS = 1000
     var ready: [Thread] = [] 
     ready.append(Thread(pc: 0, sp: data))
@@ -86,7 +86,7 @@ func addThread(
     list.append(ThompsonThread(pc: pc))
 }
 
-func thompson_vm(_ prog: [Instr], _ input: Substring) -> Int32 {
+func thompsonVM(_ prog: [Instr], _ input: Substring) -> Int32 {
     var currSeen = Set<UInt32>()
     var nextSeen = Set<UInt32>()
     
@@ -144,21 +144,21 @@ let prog = [
     Instr.Match
 ]
 
-if recursive_backtracking_vm(prog, 0, "aab") != 0 {
+if recursiveBacktrackingVM(prog, 0, "aab") != 0 {
     print("Matched by the recursive backtracking VM!")
 } else {
     print("Did not match by the recursive backtracking VM!")
 }
 
 
-if backtracking_vm(prog, "aab") != 0 {
+if bactrackingVM(prog, "aab") != 0 {
     print("Matched by backtracking VM!")
 } else {
     print("Did not match by the backtracking VM!")
 }
 
 
-if thompson_vm(prog, "aab") != 0 {
+if thompsonVM(prog, "aab") != 0 {
     print("Matched by the thompson VM!")
 } else {
     print("Did not match by the thompson VM!")
@@ -199,7 +199,7 @@ let timingInput = makeTimingInput(n: n)
 
 let backtrackingClock = ContinuousClock()
 let backtrackingStart = backtrackingClock.now
-let backtrackingResult = backtracking_vm(timingProg, timingInput[...]) 
+let backtrackingResult = bactrackingVM(timingProg, timingInput[...]) 
 let backtrackingElapsed = backtrackingClock.now - backtrackingStart
 if backtrackingResult != 0 {
     print("Matched by backtracking VM in \(backtrackingElapsed)")
@@ -210,7 +210,7 @@ if backtrackingResult != 0 {
 
 let thompsonClock = ContinuousClock()
 let thompsonStart = thompsonClock.now
-let thompsonResult = thompson_vm(timingProg, timingInput[...]) 
+let thompsonResult = thompsonVM(timingProg, timingInput[...]) 
 let thompsonElapsed = thompsonClock.now - thompsonStart
 if thompsonResult != 0 {
     print("Matched by the thompson VM in \(thompsonElapsed)")
