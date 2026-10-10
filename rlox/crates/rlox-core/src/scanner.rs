@@ -37,7 +37,11 @@ impl<'source> Scanner<'source> {
         }
     }
 
-    pub fn scan_tokens(mut self) -> ScanResult {
+    pub fn scan(&mut self) -> ScanResult {
+        self.scan_tokens()
+    }
+
+    pub fn scan_tokens(&mut self) -> ScanResult {
         let mut tokens = Vec::new();
         let mut errors = Vec::new();
 
@@ -290,17 +294,13 @@ fn is_identifier_continue(c: char) -> bool {
     c.is_ascii_alphanumeric() || c == '_'
 }
 
-pub fn scan(source: &str) -> ScanResult {
-    Scanner::new(source).scan_tokens()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn scans_single_character_tokens() {
-        let result = scan("(){},.-+;/*");
+        let result = Scanner::new("(){},.-+;/*").scan();
 
         assert!(result.errors.is_empty());
 
@@ -331,7 +331,7 @@ mod tests {
 
     #[test]
     fn scans_two_character_operators() {
-        let result = scan("! != = == < <= > >=");
+        let result = Scanner::new("! != = == < <= > >=").scan();
 
         assert!(result.errors.is_empty());
 
@@ -359,7 +359,7 @@ mod tests {
 
     #[test]
     fn scans_strings() {
-        let result = scan(r#""hello world""#);
+        let result = Scanner::new(r#""hello world""#).scan();
 
         assert!(result.errors.is_empty());
         assert_eq!(result.tokens[0].token_type, TokenType::String);
@@ -368,7 +368,7 @@ mod tests {
 
     #[test]
     fn scans_numbers() {
-        let result = scan("123 123.456");
+        let result = Scanner::new("123 123.456").scan();
 
         assert!(result.errors.is_empty());
         assert_eq!(result.tokens[0].token_type, TokenType::Number);
@@ -379,7 +379,7 @@ mod tests {
 
     #[test]
     fn scans_keywords_and_identifiers() {
-        let result = scan("and class foo bar true false");
+        let result = Scanner::new("and class foo bar true false").scan();
 
         assert!(result.errors.is_empty());
 
@@ -405,7 +405,7 @@ mod tests {
 
     #[test]
     fn skips_comments() {
-        let result = scan("foo // this is a comment\nbar");
+        let result = Scanner::new("foo // this is a comment\nbar").scan();
 
         assert!(result.errors.is_empty());
         assert_eq!(result.tokens[0].lexeme, "foo");
@@ -415,7 +415,7 @@ mod tests {
 
     #[test]
     fn reports_multiple_errors() {
-        let result = scan("@ # $");
+        let result = Scanner::new("@ # $").scan();
 
         assert_eq!(result.errors.len(), 3);
         assert_eq!(result.tokens.len(), 1);
@@ -424,7 +424,7 @@ mod tests {
 
     #[test]
     fn reports_unterminated_string() {
-        let result = scan("\"hello");
+        let result = Scanner::new("\"hello").scan();
 
         assert_eq!(result.errors.len(), 1);
         assert_eq!(result.errors[0].to_string(), "[Line 1] Unterminated string");

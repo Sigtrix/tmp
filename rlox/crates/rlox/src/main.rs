@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
 #[command(name = "rlox")]
-#[command(about = "A Lox interpreter written in Rust")]
+#[command(about = "A Lox interpreter implemented in Rust")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -17,6 +17,12 @@ enum Command {
         /// The Lox source file to tokenize
         filename: PathBuf,
     },
+
+    /// Parse a Lox source file and print its AST
+    Parse {
+        /// The Lox source file to parse
+        filename: PathBuf,
+    },
 }
 
 fn main() -> ExitCode {
@@ -24,6 +30,7 @@ fn main() -> ExitCode {
 
     match cli.command {
         Command::Tokenize { filename } => tokenize(&filename),
+        Command::Parse { filename } => parse(&filename),
     }
 }
 
@@ -36,7 +43,7 @@ fn tokenize(filename: &PathBuf) -> ExitCode {
         }
     };
 
-    let result = rlox_core::scan(&source);
+    let result = rlox_core::Scanner::new(&source).scan();
 
     for error in &result.errors {
         eprintln!("{error}");
@@ -55,5 +62,38 @@ fn tokenize(filename: &PathBuf) -> ExitCode {
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE
+    }
+}
+
+fn parse(filename: &PathBuf) -> ExitCode {
+    let source = match fs::read_to_string(filename) {
+        Ok(source) => source,
+        Err(error) => {
+            eprintln!("Failed to read {}: {error}", filename.display());
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let result = rlox_core::Scanner::new(&source).scan();
+
+    if !result.errors.is_empty() {
+        for error in &result.errors {
+            eprintln!("{error}");
+        }
+
+        return ExitCode::FAILURE;
+    }
+
+    let mut parser = rlox_core::Parser::new(result.tokens);
+
+    match parser.parse() {
+        Ok(expr) => {
+            println!("{expr}");
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("{error}");
+            ExitCode::FAILURE
+        }
     }
 }
