@@ -1,4 +1,9 @@
-use std::{fs, path::PathBuf, process::ExitCode};
+use std::{
+    fs, io,
+    io::{BufRead, Write},
+    path::Path,
+    process::ExitCode,
+};
 
 use clap::{Parser, Subcommand};
 
@@ -14,15 +19,21 @@ struct Cli {
 enum Command {
     /// Tokenize a Lox source file
     Tokenize {
-        /// The Lox source file to tokenize
-        filename: PathBuf,
+        filename: std::path::PathBuf,
     },
 
     /// Parse a Lox source file and print its AST
     Parse {
-        /// The Lox source file to parse
-        filename: PathBuf,
+        filename: std::path::PathBuf,
     },
+
+    /// Evaluate a Lox expression
+    Eval {
+        filename: std::path::PathBuf,
+    },
+
+    /// Start an interactive Lox REPL
+    Repl,
 }
 
 fn main() -> ExitCode {
@@ -31,11 +42,13 @@ fn main() -> ExitCode {
     match cli.command {
         Command::Tokenize { filename } => tokenize(&filename),
         Command::Parse { filename } => parse(&filename),
+        Command::Eval { filename } => evaluate(&filename),
+        Command::Repl => repl(),
     }
 }
 
-fn tokenize(filename: &PathBuf) -> ExitCode {
-    let source = match fs::read_to_string(filename) {
+fn tokenize(filename: &Path) -> ExitCode {
+    let source = match read_source(filename) {
         Ok(source) => source,
         Err(error) => {
             eprintln!("Failed to read {}: {error}", filename.display());
@@ -65,8 +78,8 @@ fn tokenize(filename: &PathBuf) -> ExitCode {
     }
 }
 
-fn parse(filename: &PathBuf) -> ExitCode {
-    let source = match fs::read_to_string(filename) {
+fn parse(filename: &Path) -> ExitCode {
+    let source = match read_source(filename) {
         Ok(source) => source,
         Err(error) => {
             eprintln!("Failed to read {}: {error}", filename.display());
@@ -74,26 +87,120 @@ fn parse(filename: &PathBuf) -> ExitCode {
         }
     };
 
-    let result = rlox_core::Scanner::new(&source).scan();
-
-    if !result.errors.is_empty() {
-        for error in &result.errors {
-            eprintln!("{error}");
+    let expr = match parse_source(&source) {
+        Ok(expr) => expr,
+        Err(errors) => {
+            print_errors(&errors);
+            return ExitCode::FAILURE;
         }
+    };
 
-        return ExitCode::FAILURE;
-    }
+    println!("{expr}");
+    ExitCode::SUCCESS
+}
 
-    let mut parser = rlox_core::Parser::new(result.tokens);
-
-    match parser.parse() {
-        Ok(expr) => {
-            println!("{expr}");
-            ExitCode::SUCCESS
+fn evaluate(filename: &Path) -> ExitCode {
+    let source = match read_source(filename) {
+        Ok(source) => source,
+        Err(error) => {
+            eprintln!("Failed to read {}: {error}", filename.display());
+            return ExitCode::FAILURE;
         }
+    };
+
+    let expr = match parse_source(&source) {
+        Ok(expr) => expr,
+        Err(errors) => {
+            print_errors(&errors);
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let interpreter = rlox_core::Interpreter;
+
+    match interpreter.interpret(&expr) {
+        Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("{error}");
             ExitCode::FAILURE
         }
+    }
+}
+
+fn repl() -> ExitCode {
+    let stdin = io::stdin();
+    let mut input = stdin.lock();
+    let mut stdout = io::stdout();
+
+    let interpreter = rlox_core::Interpreter;
+    let mut line = String::new();
+
+    loop {
+        print!("> ");
+
+        if let Err(error) = stdout.flush() {
+            eprintln!("Failed to flush prompt: {error}");
+            return ExitCode::FAILURE;
+        }
+
+        line.clear();
+
+        match input.read_line(&mut line) {
+            Ok(0) => {
+                println!();
+                return ExitCode::SUCCESS;
+            }
+            Ok(_) => {}
+            Err(error) => {
+                eprintln!("Failed to read input: {error}");
+                return ExitCode::FAILURE;
+            }
+        }
+
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        let expr = match parse_source(&line) {
+            Ok(expr) => expr,
+            Err(errors) => {
+                print_errors(&errors);
+                continue;
+            }
+        };
+
+        if let Err(error) = interpreter.interpret(&expr) {
+            eprintln!("{error}");
+        }
+    }
+}
+
+fn read_source(filename: &Path) -> io::Result<String> {
+    fs::read_to_string(filename)
+}
+
+fn parse_source(source: &str) -> Result<rlox_core::Expr, Vec<String>> {
+    let result = rlox_core::Scanner::new(source).scan();
+
+    if !result.errors.is_empty() {
+        return Err(
+            result
+                .errors
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+        );
+    }
+
+    let mut parser = rlox_core::Parser::new(result.tokens);
+
+    parser
+        .parse()
+        .map_err(|error| vec![error.to_string()])
+}
+
+fn print_errors(errors: &[String]) {
+    for error in errors {
+        eprintln!("{error}");
     }
 }
