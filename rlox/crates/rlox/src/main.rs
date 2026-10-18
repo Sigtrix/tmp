@@ -1,7 +1,7 @@
 use std::{
     fs, io,
     io::{BufRead, Write},
-    path::Path,
+    path::{Path, PathBuf},
     process::ExitCode,
 };
 
@@ -17,19 +17,19 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Tokenize a Lox source file
-    Tokenize {
-        filename: std::path::PathBuf,
+    /// Scan a Lox source file
+    Scan {
+        filename: PathBuf,
     },
 
     /// Parse a Lox source file and print its AST
     Parse {
-        filename: std::path::PathBuf,
+        filename: PathBuf,
     },
 
-    /// Evaluate a Lox expression
-    Eval {
-        filename: std::path::PathBuf,
+    /// Execute a Lox program
+    Exec {
+        filename: PathBuf,
     },
 
     /// Start an interactive Lox REPL
@@ -40,9 +40,9 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
 
     match cli.command {
-        Command::Tokenize { filename } => tokenize(&filename),
+        Command::Scan { filename } => tokenize(&filename),
         Command::Parse { filename } => parse(&filename),
-        Command::Eval { filename } => evaluate(&filename),
+        Command::Exec { filename } => evaluate(&filename),
         Command::Repl => repl(),
     }
 }
@@ -87,15 +87,18 @@ fn parse(filename: &Path) -> ExitCode {
         }
     };
 
-    let expr = match parse_source(&source) {
-        Ok(expr) => expr,
+    let statements = match parse_source(&source) {
+        Ok(statements) => statements,
         Err(errors) => {
             print_errors(&errors);
             return ExitCode::FAILURE;
         }
     };
 
-    println!("{expr}");
+    for statement in &statements {
+        println!("{statement}");
+    }
+
     ExitCode::SUCCESS
 }
 
@@ -108,8 +111,8 @@ fn evaluate(filename: &Path) -> ExitCode {
         }
     };
 
-    let expr = match parse_source(&source) {
-        Ok(expr) => expr,
+    let statements = match parse_source(&source) {
+        Ok(statements) => statements,
         Err(errors) => {
             print_errors(&errors);
             return ExitCode::FAILURE;
@@ -118,7 +121,7 @@ fn evaluate(filename: &Path) -> ExitCode {
 
     let interpreter = rlox_core::Interpreter;
 
-    match interpreter.interpret(&expr) {
+    match interpreter.interpret(&statements) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("{error}");
@@ -161,15 +164,15 @@ fn repl() -> ExitCode {
             continue;
         }
 
-        let expr = match parse_source(&line) {
-            Ok(expr) => expr,
+        let statements = match parse_source(&line) {
+            Ok(statements) => statements,
             Err(errors) => {
                 print_errors(&errors);
                 continue;
             }
         };
 
-        if let Err(error) = interpreter.interpret(&expr) {
+        if let Err(error) = interpreter.interpret(&statements) {
             eprintln!("{error}");
         }
     }
@@ -179,7 +182,9 @@ fn read_source(filename: &Path) -> io::Result<String> {
     fs::read_to_string(filename)
 }
 
-fn parse_source(source: &str) -> Result<rlox_core::Expr, Vec<String>> {
+fn parse_source(
+    source: &str,
+) -> Result<Vec<rlox_core::Stmt>, Vec<String>> {
     let result = rlox_core::Scanner::new(source).scan();
 
     if !result.errors.is_empty() {

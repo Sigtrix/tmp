@@ -1,6 +1,6 @@
 use std::fmt;
 use crate::token::{Token, Literal, TokenType};
-use crate::ast::Expr;
+use crate::ast::{Expr, Stmt};
 
 #[derive(Debug, thiserror::Error)]
 #[error("[line {token_line}] {message}", token_line = .token.line)]
@@ -48,10 +48,27 @@ impl fmt::Display for Value {
 pub struct Interpreter;
 
 impl Interpreter {
-    pub fn interpret(&self, expr: &Expr) -> Result<(), RuntimeError> {
-        let value = self.evaluate(expr)?;
-        println!("{value}");
+    pub fn interpret(&self, statements: &[Stmt]) -> Result<(), RuntimeError> {
+        for statement in statements {
+            self.execute(statement)?;
+        }
+
         Ok(())
+    }
+
+    pub fn execute(&self, stmt: &Stmt) -> Result<(), RuntimeError> {
+        match stmt {
+            Stmt::Expression(expr) => {
+                self.evaluate(expr)?;
+                Ok(())
+            }
+
+            Stmt::Print(expr) => {
+                let value = self.evaluate(expr)?;
+                println!("{value}");
+                Ok(())
+            }
+        }
     }
 
     pub fn evaluate(&self, expr: &Expr) -> Result<Value, RuntimeError> {
