@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt;
 use crate::token::{Token, Literal, TokenType};
 use crate::ast::{Expr, Stmt};
@@ -45,10 +46,44 @@ impl fmt::Display for Value {
     }
 }
 
-pub struct Interpreter;
+pub struct Environment {
+    values: HashMap<String, Value>,
+}
+
+impl Environment {
+    pub fn new() -> Self {
+        Self {
+            values: HashMap::new(),
+        }
+    }
+
+    pub fn define(&mut self, name: String, value: Value) {
+        self.values.insert(name, value);
+    }
+
+    pub fn get(&self, name: &Token) -> Result<Value, RuntimeError> {
+        self.values
+            .get(&name.lexeme)
+            .cloned()
+            .ok_or_else(|| RuntimeError {
+                token: name.clone(),
+                message: format!("Undefined variable '{}'.", name.lexeme),
+            })
+    }
+}
+
+pub struct Interpreter {
+    environment: Environment,
+}
 
 impl Interpreter {
-    pub fn interpret(&self, statements: &[Stmt]) -> Result<(), RuntimeError> {
+    pub fn new() -> Self {
+        Interpreter {
+            environment: Environment::new(),
+        }
+    }
+
+    pub fn interpret(&mut self, statements: &[Stmt]) -> Result<(), RuntimeError> {
         for statement in statements {
             self.execute(statement)?;
         }
@@ -56,7 +91,7 @@ impl Interpreter {
         Ok(())
     }
 
-    pub fn execute(&self, stmt: &Stmt) -> Result<(), RuntimeError> {
+    pub fn execute(&mut self, stmt: &Stmt) -> Result<(), RuntimeError> {
         match stmt {
             Stmt::Expression(expr) => {
                 self.evaluate(expr)?;
@@ -66,6 +101,16 @@ impl Interpreter {
             Stmt::Print(expr) => {
                 let value = self.evaluate(expr)?;
                 println!("{value}");
+                Ok(())
+            }
+
+            Stmt::Var {name, init} => {
+                let value = match init {
+                    Some(expr) => self.evaluate(expr)?,
+                    None => Value::Nil,
+                };
+
+                self.environment.define(name.lexeme.clone(), value);
                 Ok(())
             }
         }
@@ -174,6 +219,10 @@ impl Interpreter {
                     _ => unreachable!(),
                 }
             }
+
+            Expr::Variable { name } => {
+                self.environment.get(name)
+            }
         }
     }
 }
@@ -219,7 +268,8 @@ mod tests {
     }
 
     fn evaluate(expr: &Expr) -> Result<Value, RuntimeError> {
-        Interpreter.evaluate(expr)
+        let interpreter = Interpreter::new();
+        interpreter.evaluate(expr)
     }
 
     #[test]

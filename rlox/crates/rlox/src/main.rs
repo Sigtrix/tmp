@@ -119,7 +119,7 @@ fn evaluate(filename: &Path) -> ExitCode {
         }
     };
 
-    let interpreter = rlox_core::Interpreter;
+    let mut interpreter = rlox_core::Interpreter::new();
 
     match interpreter.interpret(&statements) {
         Ok(()) => ExitCode::SUCCESS,
@@ -135,7 +135,7 @@ fn repl() -> ExitCode {
     let mut input = stdin.lock();
     let mut stdout = io::stdout();
 
-    let interpreter = rlox_core::Interpreter;
+    let mut interpreter = rlox_core::Interpreter::new();
     let mut line = String::new();
 
     loop {

@@ -29,10 +29,30 @@ impl Parser {
         let mut statements = Vec::new();
 
         while !self.is_at_end() {
-            statements.push(self.statement()?);
+            statements.push(self.declaration()?);
         }
 
         Ok(statements)
+    }
+
+    fn declaration(&mut self) -> Result<Stmt, ParseError> {
+        if self.match_token(&[TokenType::Var]) {
+            self.var_declaration()
+        } else {
+            self.statement()
+        }
+    }
+
+    fn var_declaration(&mut self) -> Result<Stmt, ParseError> {
+       let name = self.consume(TokenType::Identifier, "Expect variable name")?.clone();
+        let init = if self.match_token(&[TokenType::Equal]) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+
+        self.consume(TokenType::Semicolon, "Expect ';' after variable declaration")?;
+        Ok(Stmt::Var {name, init })
     }
 
     fn statement(&mut self) -> Result<Stmt, ParseError> {
@@ -166,6 +186,11 @@ impl Parser {
             })?;
 
             return Ok(Expr::Literal(literal));
+        }
+
+        if self.match_token(&[TokenType::Identifier]) {
+            let token = self.previous().clone();
+            return Ok(Expr::Variable { name: token });
         }
 
         if self.match_token(&[TokenType::LeftParen]) {
