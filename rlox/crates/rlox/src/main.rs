@@ -9,7 +9,7 @@ use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
 #[command(name = "rlox")]
-#[command(about = "A Lox interpreter implemented in Rust")]
+#[command(about = "A Lox interpreter implemented in Rust.")]
 struct Cli {
     #[command(subcommand)]
     command: Command,

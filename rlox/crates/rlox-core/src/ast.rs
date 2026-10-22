@@ -22,6 +22,11 @@ pub enum Expr {
     Variable {
         name: Token,
     },
+
+    Assign {
+        name: Token,
+        value: Box<Expr>,
+    }
 }
 
 impl fmt::Display for Expr {
@@ -49,6 +54,10 @@ impl fmt::Display for Expr {
 
             Self::Variable { name } => {
                 write!(f, "{}", name.lexeme)
+            }
+
+            Self::Assign { name, value } => {
+                write!(f, "({} = {})", name.lexeme, value)
             }
         }
     }

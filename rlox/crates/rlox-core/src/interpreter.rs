@@ -70,6 +70,18 @@ impl Environment {
                 message: format!("Undefined variable '{}'.", name.lexeme),
             })
     }
+
+    pub fn assign(&mut self, name: &Token, value: Value) -> Result<(), RuntimeError> {
+        if !self.values.contains_key(&name.lexeme) {
+            return Err(RuntimeError {
+                token: name.clone(),
+                message: format!("Undefined variable '{}'.", name.lexeme),
+            })
+        }
+
+        self.values.insert(name.lexeme.clone(), value);
+        Ok(())
+    }
 }
 
 pub struct Interpreter {
@@ -116,7 +128,7 @@ impl Interpreter {
         }
     }
 
-    pub fn evaluate(&self, expr: &Expr) -> Result<Value, RuntimeError> {
+    pub fn evaluate(&mut self, expr: &Expr) -> Result<Value, RuntimeError> {
         match expr {
             Expr::Literal(literal) => {
                 Ok(Value::from(literal.clone()))
@@ -223,6 +235,12 @@ impl Interpreter {
             Expr::Variable { name } => {
                 self.environment.get(name)
             }
+
+            Expr::Assign { name, value } => {
+                let value = self.evaluate(value)?;
+                self.environment.assign(name, value.clone())?;
+                Ok(value)
+            }
         }
     }
 }
@@ -268,7 +286,7 @@ mod tests {
     }
 
     fn evaluate(expr: &Expr) -> Result<Value, RuntimeError> {
-        let interpreter = Interpreter::new();
+        let mut interpreter = Interpreter::new();
         interpreter.evaluate(expr)
     }
 
