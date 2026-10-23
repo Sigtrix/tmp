@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::cell::RefCell;
+use std::rc::Rc;
 use crate::token::{Token, Literal, TokenType};
 use crate::ast::{Expr, Stmt};
 
@@ -46,13 +48,17 @@ impl fmt::Display for Value {
     }
 }
 
+pub type SharedEnvironment = Rc<RefCell<Environment>>;
+
 pub struct Environment {
+    enclosing: Option<SharedEnvironment>,
     values: HashMap<String, Value>,
 }
 
 impl Environment {
-    pub fn new() -> Self {
+    pub fn new(enclosing: Option<SharedEnvironment>) -> Self {
         Self {
+            enclosing,
             values: HashMap::new(),
         }
     }
@@ -62,36 +68,45 @@ impl Environment {
     }
 
     pub fn get(&self, name: &Token) -> Result<Value, RuntimeError> {
-        self.values
-            .get(&name.lexeme)
-            .cloned()
-            .ok_or_else(|| RuntimeError {
-                token: name.clone(),
-                message: format!("Undefined variable '{}'.", name.lexeme),
-            })
+        if let Some(value) = self.values.get(&name.lexeme) {
+            return Ok(value.clone());
+        }
+
+        if let Some(enclosing) = &self.enclosing {
+            return enclosing.borrow().get(name);
+        }
+
+        Err(RuntimeError {
+            token: name.clone(),
+            message: format!("Undefined variable '{}'.", name.lexeme),
+        })
     }
 
     pub fn assign(&mut self, name: &Token, value: Value) -> Result<(), RuntimeError> {
-        if !self.values.contains_key(&name.lexeme) {
-            return Err(RuntimeError {
-                token: name.clone(),
-                message: format!("Undefined variable '{}'.", name.lexeme),
-            })
+        if self.values.contains_key(&name.lexeme) {
+            self.values.insert(name.lexeme.clone(), value);
+            return Ok(());
         }
 
-        self.values.insert(name.lexeme.clone(), value);
-        Ok(())
+        if let Some(enclosing) = &mut self.enclosing {
+            return enclosing.borrow_mut().assign(name, value);
+        }
+
+        Err(RuntimeError {
+            token: name.clone(),
+            message: format!("Undefined variable '{}'.", name.lexeme),
+        })
     }
 }
 
 pub struct Interpreter {
-    environment: Environment,
+    environment: SharedEnvironment,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
         Interpreter {
-            environment: Environment::new(),
+            environment: Rc::new(RefCell::new(Environment::new(None))),
         }
     }
 
@@ -122,8 +137,16 @@ impl Interpreter {
                     None => Value::Nil,
                 };
 
-                self.environment.define(name.lexeme.clone(), value);
+                self.environment.borrow_mut().define(name.lexeme.clone(), value);
                 Ok(())
+            }
+
+            Stmt::Block { statements } => {
+                let environment = Rc::new(RefCell::new(
+                    Environment::new(Some(Rc::clone(&self.environment))),
+                ));
+
+                self.execute_block(statements, environment)
             }
         }
     }
@@ -233,15 +256,29 @@ impl Interpreter {
             }
 
             Expr::Variable { name } => {
-                self.environment.get(name)
+                self.environment.borrow().get(name)
             }
 
             Expr::Assign { name, value } => {
                 let value = self.evaluate(value)?;
-                self.environment.assign(name, value.clone())?;
+                self.environment.borrow_mut().assign(name, value.clone())?;
                 Ok(value)
             }
         }
+    }
+
+    pub fn execute_block(&mut self, statements: &[Stmt], environment: SharedEnvironment) -> Result<(), RuntimeError> {
+        let previous = std::mem::replace(&mut self.environment, environment);
+
+        let result = (|| {
+            for statement in statements {
+                self.execute(statement)?;
+            }
+            Ok(())
+        })();
+
+        self.environment = previous;
+        result
     }
 }
 

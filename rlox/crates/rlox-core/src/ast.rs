@@ -69,6 +69,9 @@ pub enum Stmt {
     Var {
         name: Token,
         init: Option<Expr>,
+    },
+    Block {
+        statements: Vec<Stmt>,
     }
 }
 
@@ -82,6 +85,13 @@ impl fmt::Display for Stmt {
                     Some(expr) => write!(f, "var {} = {};", name.lexeme, expr),
                     None => write!(f, "var {};", name.lexeme),
                 }
+            },
+            Stmt::Block { statements} => {
+                write!(f, "{{ ")?;
+                for statement in statements {
+                    write!(f, "{statement}")?;
+                }
+                write!(f, " }}")
             }
         }
     }
