@@ -1,6 +1,9 @@
+use std::collections::HashMap;
 use std::fmt;
+use std::cell::RefCell;
+use std::rc::Rc;
 use crate::token::{Token, Literal, TokenType};
-use crate::ast::Expr;
+use crate::ast::{Expr, Stmt};
 
 #[derive(Debug, thiserror::Error)]
 #[error("[line {token_line}] {message}", token_line = .token.line)]
@@ -45,16 +48,110 @@ impl fmt::Display for Value {
     }
 }
 
-pub struct Interpreter;
+pub type SharedEnvironment = Rc<RefCell<Environment>>;
+
+pub struct Environment {
+    enclosing: Option<SharedEnvironment>,
+    values: HashMap<String, Value>,
+}
+
+impl Environment {
+    pub fn new(enclosing: Option<SharedEnvironment>) -> Self {
+        Self {
+            enclosing,
+            values: HashMap::new(),
+        }
+    }
+
+    pub fn define(&mut self, name: String, value: Value) {
+        self.values.insert(name, value);
+    }
+
+    pub fn get(&self, name: &Token) -> Result<Value, RuntimeError> {
+        if let Some(value) = self.values.get(&name.lexeme) {
+            return Ok(value.clone());
+        }
+
+        if let Some(enclosing) = &self.enclosing {
+            return enclosing.borrow().get(name);
+        }
+
+        Err(RuntimeError {
+            token: name.clone(),
+            message: format!("Undefined variable '{}'.", name.lexeme),
+        })
+    }
+
+    pub fn assign(&mut self, name: &Token, value: Value) -> Result<(), RuntimeError> {
+        if self.values.contains_key(&name.lexeme) {
+            self.values.insert(name.lexeme.clone(), value);
+            return Ok(());
+        }
+
+        if let Some(enclosing) = &mut self.enclosing {
+            return enclosing.borrow_mut().assign(name, value);
+        }
+
+        Err(RuntimeError {
+            token: name.clone(),
+            message: format!("Undefined variable '{}'.", name.lexeme),
+        })
+    }
+}
+
+pub struct Interpreter {
+    environment: SharedEnvironment,
+}
 
 impl Interpreter {
-    pub fn interpret(&self, expr: &Expr) -> Result<(), RuntimeError> {
-        let value = self.evaluate(expr)?;
-        println!("{value}");
+    pub fn new() -> Self {
+        Interpreter {
+            environment: Rc::new(RefCell::new(Environment::new(None))),
+        }
+    }
+
+    pub fn interpret(&mut self, statements: &[Stmt]) -> Result<(), RuntimeError> {
+        for statement in statements {
+            self.execute(statement)?;
+        }
+
         Ok(())
     }
 
-    pub fn evaluate(&self, expr: &Expr) -> Result<Value, RuntimeError> {
+    pub fn execute(&mut self, stmt: &Stmt) -> Result<(), RuntimeError> {
+        match stmt {
+            Stmt::Expression(expr) => {
+                self.evaluate(expr)?;
+                Ok(())
+            }
+
+            Stmt::Print(expr) => {
+                let value = self.evaluate(expr)?;
+                println!("{value}");
+                Ok(())
+            }
+
+            Stmt::Var {name, init} => {
+                let value = match init {
+                    Some(expr) => self.evaluate(expr)?,
+                    None => Value::Nil,
+                };
+
+                self.environment.borrow_mut().define(name.lexeme.clone(), value);
+                Ok(())
+            }
+
+            Stmt::Block { statements } => {
+                let environment = Rc::new(RefCell::new(
+                    Environment::new(Some(Rc::clone(&self.environment))),
+                ));
+
+                self.execute_block(statements, environment)
+            }
+        }
+    }
+
+    pub fn evaluate(&mut self, expr: &Expr) -> Result<Value, RuntimeError> {
         match expr {
             Expr::Literal(literal) => {
                 Ok(Value::from(literal.clone()))
@@ -157,7 +254,31 @@ impl Interpreter {
                     _ => unreachable!(),
                 }
             }
+
+            Expr::Variable { name } => {
+                self.environment.borrow().get(name)
+            }
+
+            Expr::Assign { name, value } => {
+                let value = self.evaluate(value)?;
+                self.environment.borrow_mut().assign(name, value.clone())?;
+                Ok(value)
+            }
         }
+    }
+
+    pub fn execute_block(&mut self, statements: &[Stmt], environment: SharedEnvironment) -> Result<(), RuntimeError> {
+        let previous = std::mem::replace(&mut self.environment, environment);
+
+        let result = (|| {
+            for statement in statements {
+                self.execute(statement)?;
+            }
+            Ok(())
+        })();
+
+        self.environment = previous;
+        result
     }
 }
 
@@ -202,7 +323,8 @@ mod tests {
     }
 
     fn evaluate(expr: &Expr) -> Result<Value, RuntimeError> {
-        Interpreter.evaluate(expr)
+        let mut interpreter = Interpreter::new();
+        interpreter.evaluate(expr)
     }
 
     #[test]

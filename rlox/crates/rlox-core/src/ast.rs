@@ -18,6 +18,15 @@ pub enum Expr {
         operator: Token,
         right: Box<Expr>,
     },
+
+    Variable {
+        name: Token,
+    },
+
+    Assign {
+        name: Token,
+        value: Box<Expr>,
+    }
 }
 
 impl fmt::Display for Expr {
@@ -41,6 +50,48 @@ impl fmt::Display for Expr {
 
             Self::Unary { operator, right } => {
                 write!(f, "({} {})", operator.lexeme, right)
+            }
+
+            Self::Variable { name } => {
+                write!(f, "{}", name.lexeme)
+            }
+
+            Self::Assign { name, value } => {
+                write!(f, "({} = {})", name.lexeme, value)
+            }
+        }
+    }
+}
+
+pub enum Stmt {
+    Expression(Expr),
+    Print(Expr),
+    Var {
+        name: Token,
+        init: Option<Expr>,
+    },
+    Block {
+        statements: Vec<Stmt>,
+    }
+}
+
+impl fmt::Display for Stmt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Stmt::Expression(expr) => write!(f, "{expr};"),
+            Stmt::Print(expr) => write!(f, "print {expr};"),
+            Self::Var { name, init } => {
+                match init {
+                    Some(expr) => write!(f, "var {} = {};", name.lexeme, expr),
+                    None => write!(f, "var {};", name.lexeme),
+                }
+            },
+            Stmt::Block { statements} => {
+                write!(f, "{{ ")?;
+                for statement in statements {
+                    write!(f, "{statement}")?;
+                }
+                write!(f, " }}")
             }
         }
     }
