@@ -169,7 +169,7 @@ impl Interpreter {
                         Value::Number(n) => Ok(Value::Number(-*n)),
                         _ => Err(RuntimeError {
                             token: operator.clone(),
-                            message: "Operand must be a number".to_string(),
+                            message: "Operand must be a number.".to_string(),
                         }),
                     },
                     TokenType::Bang => Ok(Value::Bool(!right.is_truthy())),

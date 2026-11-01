@@ -1,0 +1,17 @@
+version: '3'
+
+tasks:
+  book-setup:
+    desc: Install Crafting Interpreters test dependencies
+    dir: '{{.BOOK_REPO}}/tool'
+    cmds:
+      - dart pub get
+
+  test-book:
+    desc: Run Crafting Interpreters test suite
+    dir: '{{.BOOK_REPO}}'
+    vars:
+      CHAPTER: '{{.CHAPTER | default "jlox"}}'
+    cmds:
+      - cargo build --manifest-path "{{.RLOX_DIR}}/Cargo.toml"
+      - dart tool/bin/test.dart "{{.CHAPTER}}" --interpreter "{{.RLOX_DIR}}/target/debug/rlox" --arguments exec

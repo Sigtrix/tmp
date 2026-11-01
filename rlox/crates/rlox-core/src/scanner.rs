@@ -8,13 +8,13 @@ pub struct ScanResult {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ScanError {
-    #[error("[Line {line}] Unexpected character '{character}'")]
+    #[error("[line {line}] Error: Unexpected character '{character}'.")]
     UnexpectedCharacter {
         character: char,
         line: usize,
     },
 
-    #[error("[Line {line}] Unterminated string")]
+    #[error("[line {line}] Error: Unterminated string.")]
     UnterminatedString {
         line: usize,
     },
@@ -427,6 +427,6 @@ mod tests {
         let result = Scanner::new("\"hello").scan();
 
         assert_eq!(result.errors.len(), 1);
-        assert_eq!(result.errors[0].to_string(), "[Line 1] Unterminated string");
+        assert_eq!(result.errors[0].to_string(), "[line 1] Unterminated string.");
     }
 }
