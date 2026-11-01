@@ -427,6 +427,6 @@ mod tests {
         let result = Scanner::new("\"hello").scan();
 
         assert_eq!(result.errors.len(), 1);
-        assert_eq!(result.errors[0].to_string(), "[line 1] Unterminated string.");
+        assert_eq!(result.errors[0].to_string(), "[line 1] Error: Unterminated string.");
     }
 }

@@ -375,7 +375,7 @@ mod tests {
 
         let error = evaluate(&expr).unwrap_err();
 
-        assert_eq!(error.message, "Operand must be a number");
+        assert_eq!(error.message, "Operand must be a number.");
         assert_eq!(error.token.lexeme, "-");
     }
 
