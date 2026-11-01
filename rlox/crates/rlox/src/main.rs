@@ -7,6 +7,9 @@ use std::{
 
 use clap::{Parser, Subcommand};
 
+const EXIT_CODE_COMPILE_ERROR: u8 = 65;
+const EXIT_CODE_RUNTIME_ERROR: u8 = 70;
+
 #[derive(Debug, Parser)]
 #[command(name = "rlox")]
 #[command(about = "A Lox interpreter implemented in Rust.")]
@@ -74,7 +77,7 @@ fn tokenize(filename: &Path) -> ExitCode {
     if result.errors.is_empty() {
         ExitCode::SUCCESS
     } else {
-        ExitCode::FAILURE
+        ExitCode::from(EXIT_CODE_COMPILE_ERROR)
     }
 }
 
@@ -91,7 +94,7 @@ fn parse(filename: &Path) -> ExitCode {
         Ok(statements) => statements,
         Err(errors) => {
             print_errors(&errors);
-            return ExitCode::FAILURE;
+            return ExitCode::from(EXIT_CODE_COMPILE_ERROR);
         }
     };
 
@@ -115,7 +118,7 @@ fn evaluate(filename: &Path) -> ExitCode {
         Ok(statements) => statements,
         Err(errors) => {
             print_errors(&errors);
-            return ExitCode::FAILURE;
+            return ExitCode::from(EXIT_CODE_COMPILE_ERROR);
         }
     };
 
@@ -124,8 +127,9 @@ fn evaluate(filename: &Path) -> ExitCode {
     match interpreter.interpret(&statements) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
-            eprintln!("{error}");
-            ExitCode::FAILURE
+            eprintln!("{}", error.message);
+            eprintln!("[line {}]", error.token.line);
+            ExitCode::from(EXIT_CODE_RUNTIME_ERROR)
         }
     }
 }
